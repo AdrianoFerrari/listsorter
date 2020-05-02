@@ -63,15 +63,10 @@ ghostView dnd items =
 -- MODEL
 
 
-type MergeGroup a
-    = Merging ( List a, List a, List a )
-    | Merged (List a)
-
-
 type Model
     = DataInput { field : String, error : Maybe String }
     | PresortStep { sorted : List (List String), unsorted : List (List String), dnd : DnDList.Model }
-    | MergeStep (List (MergeGroup String))
+    | MergeStep { merged : List (List String), unmerged : List ( List String, List String, List String ) }
     | Complete (List String)
 
 
@@ -151,8 +146,29 @@ update msg model =
                 [] ->
                     Debug.todo "Shouldn't happen"
 
+        ( PresortStep ({ sorted, unsorted } as presortModel), SubmitPresort ) ->
+            case ( sorted, unsorted ) of
+                ( _, onlyUnsorted :: [] ) ->
+                    ( MergeStep { merged = [], unmerged = pairForMerging unsorted }, Cmd.none )
+
+                ( _, firstUnsorted :: restUnsorted ) ->
+                    ( PresortStep { presortModel | sorted = sorted ++ [ firstUnsorted ], unsorted = restUnsorted }, Cmd.none )
+
+                _ ->
+                    ( model, Cmd.none )
+
         _ ->
             ( model, Cmd.none )
+
+
+pairForMerging : List (List String) -> List ( List String, List String, List String )
+pairForMerging sortedLists =
+    ListExtra.zip sortedLists (List.drop 1 sortedLists)
+        |> List.map (\( l, r ) -> ( l, r, [] ))
+
+
+
+-- VIEW
 
 
 itemView : DnDList.Model -> Int -> String -> Html Msg
@@ -200,6 +216,9 @@ view model =
 
                 [] ->
                     div [] [ text "Something's wrong!!" ]
+
+        MergeStep ({ unmerged } as mergeModel) ->
+            div [] [ text "MergeStep" ]
 
         _ ->
             div [] [ text "Other step" ]
