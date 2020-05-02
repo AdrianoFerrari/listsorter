@@ -3,7 +3,7 @@ module Main exposing (..)
 import Browser
 import DnDList
 import Html exposing (..)
-import Html.Attributes exposing (value)
+import Html.Attributes as A exposing (value)
 import Html.Events exposing (onClick)
 import List.Extra as ListExtra
 import List.Split exposing (..)
@@ -39,6 +39,24 @@ config =
 system : DnDList.System String Msg
 system =
     DnDList.create config DnDMsg
+
+
+ghostView : DnDList.Model -> List String -> Html.Html Msg
+ghostView dnd items =
+    let
+        maybeDragItem : Maybe String
+        maybeDragItem =
+            system.info dnd
+                |> Maybe.andThen (\{ dragIndex } -> items |> List.drop dragIndex |> List.head)
+    in
+    case maybeDragItem of
+        Just item ->
+            Html.div
+                (system.ghostStyles dnd)
+                [ Html.text item ]
+
+        Nothing ->
+            Html.text ""
 
 
 
@@ -126,13 +144,39 @@ update msg model =
                         ( newDnd, newUnsorted ) =
                             system.update dndMsg dnd firstUnsorted
                     in
-                    ( PresortStep { presortModel | dnd = newDnd, unsorted = newUnsorted :: restUnsorted }, Cmd.none )
+                    ( PresortStep { presortModel | dnd = newDnd, unsorted = newUnsorted :: restUnsorted }
+                    , system.commands dnd
+                    )
 
                 [] ->
                     Debug.todo "Shouldn't happen"
 
         _ ->
             ( model, Cmd.none )
+
+
+itemView : DnDList.Model -> Int -> String -> Html Msg
+itemView dnd index item =
+    let
+        itemId =
+            "id-" ++ item
+    in
+    case system.info dnd of
+        Just { dragIndex } ->
+            if dragIndex == index then
+                li
+                    [ A.id itemId ]
+                    [ text "____" ]
+
+            else
+                li
+                    (A.id itemId :: system.dropEvents index itemId)
+                    [ text item ]
+
+        Nothing ->
+            li
+                (A.id itemId :: system.dragEvents index itemId)
+                [ text item ]
 
 
 view : Model -> Html Msg
@@ -145,11 +189,14 @@ view model =
                 , button [ onClick SubmitData ] [ text "Submit" ]
                 ]
 
-        PresortStep { unsorted } ->
+        PresortStep { unsorted, dnd } ->
             case unsorted of
                 firstUnsorted :: _ ->
-                    ul []
-                        (List.map (\s -> li [] [ text s ]) firstUnsorted ++ [ button [ onClick SubmitPresort ] [ text "Submit" ] ])
+                    div []
+                        [ ul [] (firstUnsorted |> List.indexedMap (itemView dnd))
+                        , ghostView dnd firstUnsorted
+                        , button [ onClick SubmitPresort ] [ text "Submit" ]
+                        ]
 
                 [] ->
                     div [] [ text "Something's wrong!!" ]
@@ -160,4 +207,9 @@ view model =
 
 subscriptions : Model -> Sub Msg
 subscriptions model =
-    Sub.none
+    case model of
+        PresortStep { dnd } ->
+            system.subscriptions dnd
+
+        _ ->
+            Sub.none
