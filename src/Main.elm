@@ -79,6 +79,9 @@ type Msg
     | SubmitData
     | DnDMsg DnDList.Msg
     | SubmitPresort
+    | SelectLeft
+    | SelectEqual
+    | SelectRight
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -149,7 +152,7 @@ update msg model =
         ( PresortStep ({ sorted, unsorted } as presortModel), SubmitPresort ) ->
             case ( sorted, unsorted ) of
                 ( _, onlyUnsorted :: [] ) ->
-                    ( MergeStep { merged = [], unmerged = pairForMerging unsorted }, Cmd.none )
+                    ( MergeStep (pairForMerging (sorted ++ unsorted) |> Debug.log "after pairing"), Cmd.none )
 
                 ( _, firstUnsorted :: restUnsorted ) ->
                     ( PresortStep { presortModel | sorted = sorted ++ [ firstUnsorted ], unsorted = restUnsorted }, Cmd.none )
@@ -161,10 +164,32 @@ update msg model =
             ( model, Cmd.none )
 
 
-pairForMerging : List (List String) -> List ( List String, List String, List String )
+pairForMerging : List (List String) -> { merged : List (List String), unmerged : List ( List String, List String, List String ) }
 pairForMerging sortedLists =
-    ListExtra.zip sortedLists (List.drop 1 sortedLists)
-        |> List.map (\( l, r ) -> ( l, r, [] ))
+    let
+        evenLists =
+            ListExtra.removeIfIndex (\i -> modBy 2 i == 0) sortedLists
+                |> Debug.log "evenLists"
+
+        oddLists =
+            ListExtra.removeIfIndex (\i -> modBy 2 i /= 0) sortedLists
+                |> Debug.log "oddLists"
+
+        newLists =
+            ListExtra.zip oddLists evenLists
+                |> List.map (\( l, r ) -> ( l, r, [] ))
+                |> Debug.log "newLists"
+    in
+    if List.length oddLists == List.length evenLists then
+        { merged = [], unmerged = newLists }
+
+    else
+        case ListExtra.last oddLists of
+            Just lastOdd ->
+                { merged = [ lastOdd ], unmerged = newLists }
+
+            Nothing ->
+                Debug.todo "Shouldn't happen!"
 
 
 
@@ -195,6 +220,20 @@ itemView dnd index item =
                 [ text item ]
 
 
+mergeView : ( List String, List String, List String ) -> Html Msg
+mergeView ( left, right, merged ) =
+    div []
+        [ h1 [] [ text "Left" ]
+        , button [ onClick SelectLeft ] [ text "select left" ]
+        , ul [] (List.map (\s -> li [] [ text s ]) left)
+        , h1 [] [ text "Merged" ]
+        , ul [] (List.map (\s -> li [] [ text s ]) merged)
+        , h1 [] [ text "Right" ]
+        , button [ onClick SelectRight ] [ text "select right" ]
+        , ul [] (List.map (\s -> li [] [ text s ]) right)
+        ]
+
+
 view : Model -> Html Msg
 view model =
     case model of
@@ -218,7 +257,12 @@ view model =
                     div [] [ text "Something's wrong!!" ]
 
         MergeStep ({ unmerged } as mergeModel) ->
-            div [] [ text "MergeStep" ]
+            case unmerged of
+                firstUnmerged :: _ ->
+                    mergeView firstUnmerged
+
+                [] ->
+                    div [] [ text "Shouldn't happen!" ]
 
         _ ->
             div [] [ text "Other step" ]
