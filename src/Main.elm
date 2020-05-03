@@ -63,10 +63,21 @@ ghostView dnd items =
 -- MODEL
 
 
+type alias PresortStepData =
+    { sorted : List (List String)
+    , unsorted : List (List String)
+    , dnd : DnDList.Model
+    }
+
+
+type alias MergeStepData =
+    { merged : List (List String), unmerged : List ( List String, List String, List String ) }
+
+
 type Model
     = DataInput { field : String, error : Maybe String }
-    | PresortStep { sorted : List (List String), unsorted : List (List String), dnd : DnDList.Model }
-    | MergeStep { merged : List (List String), unmerged : List ( List String, List String, List String ) }
+    | PresortStep PresortStepData
+    | MergeStep MergeStepData
     | Complete (List String)
 
 
@@ -80,7 +91,6 @@ type Msg
     | DnDMsg DnDList.Msg
     | SubmitPresort
     | SelectLeft
-    | SelectEqual
     | SelectRight
 
 
@@ -160,11 +170,35 @@ update msg model =
                 _ ->
                     ( model, Cmd.none )
 
+        ( MergeStep mergeStepData, SelectLeft ) ->
+            let
+                ({ merged, unmerged } as nextMerge) =
+                    selectLeft mergeStepData
+            in
+            case ( merged, unmerged ) of
+                ( _, [] ) ->
+                    ( MergeStep (pairForMerging merged), Cmd.none )
+
+                ( _, _ ) ->
+                    ( MergeStep nextMerge, Cmd.none )
+
+        ( MergeStep mergeStepData, SelectRight ) ->
+            let
+                ({ merged, unmerged } as nextMerge) =
+                    selectRight mergeStepData
+            in
+            case ( merged, unmerged ) of
+                ( _, [] ) ->
+                    ( MergeStep (pairForMerging merged), Cmd.none )
+
+                ( _, _ ) ->
+                    ( MergeStep nextMerge, Cmd.none )
+
         _ ->
             ( model, Cmd.none )
 
 
-pairForMerging : List (List String) -> { merged : List (List String), unmerged : List ( List String, List String, List String ) }
+pairForMerging : List (List String) -> MergeStepData
 pairForMerging sortedLists =
     let
         evenLists =
@@ -190,6 +224,38 @@ pairForMerging sortedLists =
 
             Nothing ->
                 Debug.todo "Shouldn't happen!"
+
+
+selectLeft : MergeStepData -> MergeStepData
+selectLeft ({ merged, unmerged } as original) =
+    case unmerged of
+        [] ->
+            original
+
+        ( onlyLeft :: [], firstRight, firstProgress ) :: unmergedRest ->
+            { original | merged = merged ++ [ firstProgress ++ firstRight ++ [ onlyLeft ] ], unmerged = unmergedRest }
+
+        ( firstLeft :: restLeft, firstRight, firstProgress ) :: unmergedRest ->
+            { original | unmerged = ( restLeft, firstRight, firstProgress ++ [ firstLeft ] ) :: unmergedRest }
+
+        _ ->
+            original
+
+
+selectRight : MergeStepData -> MergeStepData
+selectRight ({ merged, unmerged } as original) =
+    case unmerged of
+        [] ->
+            original
+
+        ( firstLeft, onlyRight :: [], firstProgress ) :: unmergedRest ->
+            { original | merged = merged ++ [ firstProgress ++ firstLeft ++ [ onlyRight ] ], unmerged = unmergedRest }
+
+        ( firstLeft, firstRight :: restRight, firstProgress ) :: unmergedRest ->
+            { original | unmerged = ( firstLeft, restRight, firstProgress ++ [ firstRight ] ) :: unmergedRest }
+
+        _ ->
+            original
 
 
 
