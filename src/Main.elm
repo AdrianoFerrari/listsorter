@@ -177,7 +177,16 @@ update msg model =
             in
             case ( merged, unmerged ) of
                 ( _, [] ) ->
-                    ( MergeStep (pairForMerging merged), Cmd.none )
+                    let
+                        nextPair =
+                            pairForMerging merged
+                    in
+                    case nextPair.merged of
+                        singleList :: [] ->
+                            ( Complete singleList, Cmd.none )
+
+                        _ ->
+                            ( MergeStep nextPair, Cmd.none )
 
                 ( _, _ ) ->
                     ( MergeStep nextMerge, Cmd.none )
@@ -189,7 +198,16 @@ update msg model =
             in
             case ( merged, unmerged ) of
                 ( _, [] ) ->
-                    ( MergeStep (pairForMerging merged), Cmd.none )
+                    let
+                        nextPair =
+                            pairForMerging merged
+                    in
+                    case nextPair.merged of
+                        singleList :: [] ->
+                            ( Complete singleList, Cmd.none )
+
+                        _ ->
+                            ( MergeStep nextPair, Cmd.none )
 
                 ( _, _ ) ->
                     ( MergeStep nextMerge, Cmd.none )
@@ -330,8 +348,11 @@ view model =
                 [] ->
                     div [] [ text "Shouldn't happen!" ]
 
-        _ ->
-            div [] [ text "Other step" ]
+        Complete finishedList ->
+            div []
+                [ h1 [] [ text "Done" ]
+                , ul [] (List.map (\i -> li [] [ text i ]) finishedList)
+                ]
 
 
 subscriptions : Model -> Sub Msg
