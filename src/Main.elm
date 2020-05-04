@@ -96,6 +96,7 @@ type Msg
     | SubmitPresort
     | SelectLeft
     | SelectRight
+    | Undo
 
 
 update : Msg -> State -> ( State, Cmd Msg )
@@ -222,8 +223,13 @@ update msg model =
 
 updateWithHistory : Msg -> Model -> ( Model, Cmd Msg )
 updateWithHistory msg ( current, history ) =
-    update msg current
-        |> (\( m, c ) -> ( ( m, current :: history ), c ))
+    case ( msg, history ) of
+        ( Undo, prevState :: prevHistory ) ->
+            ( ( prevState, prevHistory ), Cmd.none )
+
+        _ ->
+            update msg current
+                |> (\( m, c ) -> ( ( m, current :: history ), c ))
 
 
 pairForMerging : List (List String) -> MergeStepData
@@ -317,7 +323,9 @@ itemView dnd index item =
 mergeView : ( List String, List String, List String ) -> Html Msg
 mergeView ( left, right, merged ) =
     div []
-        [ h1 [] [ text "Left" ]
+        [ button [ onClick Undo ] [ text "Undo" ]
+        , hr [] []
+        , h1 [] [ text "Left" ]
         , button [ onClick SelectLeft ] [ text "select left" ]
         , ul [] (List.map (\s -> li [] [ text s ]) left)
         , h1 [] [ text "Merged" ]
@@ -336,6 +344,7 @@ view ( current, history ) =
                 [ dataModel.error |> Maybe.withDefault "" |> text
                 , textarea [ value dataModel.field, Html.Events.onInput ChangeData ] []
                 , button [ onClick SubmitData ] [ text "Submit" ]
+                , button [ onClick Undo ] [ text "Undo" ]
                 ]
 
         PresortStep { unsorted, dnd } ->
@@ -345,6 +354,7 @@ view ( current, history ) =
                         [ ul [] (firstUnsorted |> List.indexedMap (itemView dnd))
                         , ghostView dnd firstUnsorted
                         , button [ onClick SubmitPresort ] [ text "Submit" ]
+                        , button [ onClick Undo ] [ text "Undo" ]
                         ]
 
                 [] ->
@@ -362,6 +372,7 @@ view ( current, history ) =
             div []
                 [ h1 [] [ text "Done" ]
                 , ul [] (List.map (\i -> li [] [ text i ]) finishedList)
+                , button [ onClick Undo ] [ text "Undo" ]
                 ]
 
 
