@@ -1,0 +1,19 @@
+.grid-container {
+  display: grid;
+  grid-template-columns: 1.3fr 0.4fr 1.3fr;
+  grid-template-rows: auto auto auto;
+  gap: 1px 1px;
+  grid-template-areas: "question question question" "left-item middle right-item" "left-list . right-list";
+}
+
+.question { grid-area: question; }
+
+.left-item { grid-area: left-item; }
+
+.right-item { grid-area: right-item; }
+
+.middle { grid-area: middle; }
+
+.left-list { grid-area: left-list; }
+
+.right-list { grid-area: right-list; }

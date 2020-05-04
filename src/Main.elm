@@ -3,7 +3,7 @@ module Main exposing (..)
 import Browser
 import DnDList
 import Html exposing (..)
-import Html.Attributes as A exposing (value)
+import Html.Attributes as A exposing (class, value)
 import Html.Events exposing (onClick)
 import List.Extra as ListExtra
 import List.Split exposing (..)
@@ -15,10 +15,10 @@ testData =
 
 main : Program () Model Msg
 main =
-    Browser.element
+    Browser.document
         { init = \_ -> ( ( DataInput { field = testData, error = Nothing }, [] ), Cmd.none )
         , update = updateWithHistory
-        , view = view
+        , view = \model -> { title = "List Sort", body = [ view model ] }
         , subscriptions = subscriptions
         }
 
@@ -322,22 +322,23 @@ itemView dnd index item =
 
 mergeView : ( List String, List String, List String ) -> Html Msg
 mergeView ( left, right, merged ) =
-    div []
-        [ button [ onClick Undo ] [ text "Undo" ]
-        , hr [] []
-        , h1 [] [ text "Left" ]
-        , button [ onClick SelectLeft ] [ text "select left" ]
-        , ul [] (List.map (\s -> li [] [ text s ]) left)
-        , h1 [] [ text "Merged" ]
-        , ul [] (List.map (\s -> li [] [ text s ]) merged)
-        , h1 [] [ text "Right" ]
-        , button [ onClick SelectRight ] [ text "select right" ]
-        , ul [] (List.map (\s -> li [] [ text s ]) right)
-        ]
+    case ( left, right ) of
+        ( leftItem :: leftList, rightItem :: rightList ) ->
+            div [ class "grid-container" ]
+                [ div [ class "left-item" ] [ button [ onClick SelectLeft ] [ text leftItem ] ]
+                , div [ class "right-item" ] [ button [ onClick SelectRight ] [ text rightItem ] ]
+                , div [ class "middle" ] [ button [ onClick SelectLeft ] [ text "same" ] ]
+                , div [ class "left-list" ] [ ul [] (List.map (\s -> li [] [ text s ]) leftList) ]
+                , div [ class "right-list" ] [ ul [] (List.map (\s -> li [] [ text s ]) rightList) ]
+                , div [ class "question" ] [ h1 [] [ text "Which is greater?" ] ]
+                ]
+
+        _ ->
+            div [] [ text "Shouldn't happen" ]
 
 
 view : Model -> Html Msg
-view ( current, history ) =
+view ( current, _ ) =
     case current of
         DataInput dataModel ->
             div []
