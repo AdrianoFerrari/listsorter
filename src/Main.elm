@@ -251,7 +251,7 @@ selectLeft ({ merged, unmerged } as original) =
             original
 
         ( onlyLeft :: [], firstRight, firstProgress ) :: unmergedRest ->
-            { original | merged = merged ++ [ firstProgress ++ firstRight ++ [ onlyLeft ] ], unmerged = unmergedRest }
+            { original | merged = merged ++ [ firstProgress ++ [ onlyLeft ] ++ firstRight ], unmerged = unmergedRest }
 
         ( firstLeft :: restLeft, firstRight, firstProgress ) :: unmergedRest ->
             { original | unmerged = ( restLeft, firstRight, firstProgress ++ [ firstLeft ] ) :: unmergedRest }
@@ -267,7 +267,7 @@ selectRight ({ merged, unmerged } as original) =
             original
 
         ( firstLeft, onlyRight :: [], firstProgress ) :: unmergedRest ->
-            { original | merged = merged ++ [ firstProgress ++ firstLeft ++ [ onlyRight ] ], unmerged = unmergedRest }
+            { original | merged = merged ++ [ firstProgress ++ [ onlyRight ] ++ firstLeft ], unmerged = unmergedRest }
 
         ( firstLeft, firstRight :: restRight, firstProgress ) :: unmergedRest ->
             { original | unmerged = ( firstLeft, restRight, firstProgress ++ [ firstRight ] ) :: unmergedRest }
