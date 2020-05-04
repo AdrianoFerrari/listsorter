@@ -16,8 +16,8 @@ testData =
 main : Program () Model Msg
 main =
     Browser.element
-        { init = \_ -> ( DataInput { field = testData, error = Nothing }, Cmd.none )
-        , update = update
+        { init = \_ -> ( ( DataInput { field = testData, error = Nothing }, [] ), Cmd.none )
+        , update = updateWithHistory
         , view = view
         , subscriptions = subscriptions
         }
@@ -74,11 +74,15 @@ type alias MergeStepData =
     { merged : List (List String), unmerged : List ( List String, List String, List String ) }
 
 
-type Model
+type State
     = DataInput { field : String, error : Maybe String }
     | PresortStep PresortStepData
     | MergeStep MergeStepData
     | Complete (List String)
+
+
+type alias Model =
+    ( State, List State )
 
 
 
@@ -94,7 +98,7 @@ type Msg
     | SelectRight
 
 
-update : Msg -> Model -> ( Model, Cmd Msg )
+update : Msg -> State -> ( State, Cmd Msg )
 update msg model =
     case ( model, msg ) of
         ( DataInput dataModel, ChangeData newField ) ->
@@ -216,6 +220,12 @@ update msg model =
             ( model, Cmd.none )
 
 
+updateWithHistory : Msg -> Model -> ( Model, Cmd Msg )
+updateWithHistory msg ( current, history ) =
+    update msg current
+        |> (\( m, c ) -> ( ( m, current :: history ), c ))
+
+
 pairForMerging : List (List String) -> MergeStepData
 pairForMerging sortedLists =
     let
@@ -319,8 +329,8 @@ mergeView ( left, right, merged ) =
 
 
 view : Model -> Html Msg
-view model =
-    case model of
+view ( current, history ) =
+    case current of
         DataInput dataModel ->
             div []
                 [ dataModel.error |> Maybe.withDefault "" |> text
@@ -356,8 +366,8 @@ view model =
 
 
 subscriptions : Model -> Sub Msg
-subscriptions model =
-    case model of
+subscriptions ( current, history ) =
+    case current of
         PresortStep { dnd } ->
             system.subscriptions dnd
 
