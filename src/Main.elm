@@ -7,6 +7,7 @@ import Html.Attributes as A exposing (class, value)
 import Html.Events exposing (onClick)
 import List.Extra as ListExtra
 import List.Split exposing (..)
+import List.Zipper as LZ exposing (..)
 
 
 testData =
@@ -64,8 +65,7 @@ ghostView dnd items =
 
 
 type alias PresortStepData =
-    { sorted : List (List String)
-    , unsorted : List (List String)
+    { items : Zipper (List String)
     , dnd : DnDList.Model
     }
 
@@ -120,7 +120,7 @@ update msg model =
                     chunked =
                         chunksOfLeft 5 items
 
-                    oddChunked =
+                    myChunked =
                         case modBy 5 <| List.length items of
                             1 ->
                                 items
@@ -148,32 +148,29 @@ update msg model =
                             _ ->
                                 chunked
                 in
-                ( PresortStep { sorted = [], unsorted = oddChunked, dnd = system.model }, Cmd.none )
+                case myChunked of
+                    [] ->
+                        ( DataInput { field = field, error = Just "5 items minimum" }, Cmd.none )
 
-        ( PresortStep ({ unsorted, dnd } as presortModel), DnDMsg dndMsg ) ->
-            case unsorted of
-                firstUnsorted :: restUnsorted ->
-                    let
-                        ( newDnd, newUnsorted ) =
-                            system.update dndMsg dnd firstUnsorted
-                    in
-                    ( PresortStep { presortModel | dnd = newDnd, unsorted = newUnsorted :: restUnsorted }
-                    , system.commands dnd
-                    )
+                    fstChunk :: restChunks ->
+                        ( PresortStep { items = from [] fstChunk restChunks, dnd = system.model }, Cmd.none )
 
-                [] ->
-                    Debug.todo "Shouldn't happen"
+        ( PresortStep ({ items, dnd } as presortModel), DnDMsg dndMsg ) ->
+            let
+                ( newDnd, newUnsorted ) =
+                    system.update dndMsg dnd (current items)
+            in
+            ( PresortStep { presortModel | dnd = newDnd, items = items |> mapCurrent (\_ -> newUnsorted) }
+            , system.commands dnd
+            )
 
-        ( PresortStep ({ sorted, unsorted } as presortModel), SubmitPresort ) ->
-            case ( sorted, unsorted ) of
-                ( _, onlyUnsorted :: [] ) ->
-                    ( MergeStep (pairForMerging (sorted ++ unsorted) |> Debug.log "after pairing"), Cmd.none )
+        ( PresortStep ({ items } as presortModel), SubmitPresort ) ->
+            case LZ.next items of
+                Just nextItems ->
+                    ( PresortStep { presortModel | items = nextItems }, Cmd.none )
 
-                ( _, firstUnsorted :: restUnsorted ) ->
-                    ( PresortStep { presortModel | sorted = sorted ++ [ firstUnsorted ], unsorted = restUnsorted }, Cmd.none )
-
-                _ ->
-                    ( model, Cmd.none )
+                Nothing ->
+                    ( MergeStep (pairForMerging (before items ++ [ current items ])), Cmd.none )
 
         ( MergeStep mergeStepData, SelectLeft ) ->
             let
@@ -237,16 +234,13 @@ pairForMerging sortedLists =
     let
         evenLists =
             ListExtra.removeIfIndex (\i -> modBy 2 i == 0) sortedLists
-                |> Debug.log "evenLists"
 
         oddLists =
             ListExtra.removeIfIndex (\i -> modBy 2 i /= 0) sortedLists
-                |> Debug.log "oddLists"
 
         newLists =
             ListExtra.zip oddLists evenLists
                 |> List.map (\( l, r ) -> ( l, r, [] ))
-                |> Debug.log "newLists"
     in
     if List.length oddLists == List.length evenLists then
         { merged = [], unmerged = newLists }
@@ -348,18 +342,17 @@ view ( current, _ ) =
                 , button [ onClick Undo ] [ text "Undo" ]
                 ]
 
-        PresortStep { unsorted, dnd } ->
-            case unsorted of
-                firstUnsorted :: _ ->
-                    div []
-                        [ ul [] (firstUnsorted |> List.indexedMap (itemView dnd))
-                        , ghostView dnd firstUnsorted
-                        , button [ onClick SubmitPresort ] [ text "Submit" ]
-                        , button [ onClick Undo ] [ text "Undo" ]
-                        ]
-
-                [] ->
-                    div [] [ text "Something's wrong!!" ]
+        PresortStep { items, dnd } ->
+            let
+                currentItems =
+                    LZ.current items
+            in
+            div []
+                [ ul [] (currentItems |> List.indexedMap (itemView dnd))
+                , ghostView dnd currentItems
+                , button [ onClick SubmitPresort ] [ text "Submit" ]
+                , button [ onClick Undo ] [ text "Undo" ]
+                ]
 
         MergeStep ({ unmerged } as mergeModel) ->
             case unmerged of
