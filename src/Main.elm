@@ -6,8 +6,8 @@ import Html exposing (..)
 import Html.Attributes as A exposing (class, value)
 import Html.Events exposing (onClick)
 import List.Extra as ListExtra
+import List.NonEmpty.Zipper as LZ exposing (..)
 import List.Split exposing (..)
-import List.Zipper as LZ exposing (..)
 
 
 testData =
@@ -71,7 +71,9 @@ type alias PresortStepData =
 
 
 type alias MergeStepData =
-    { merged : List (List String), unmerged : List ( List String, List String, List String ) }
+    { merged : List (List String)
+    , unmerged : List ( List String, List String, List String )
+    }
 
 
 type State
@@ -153,14 +155,27 @@ update msg model =
                         ( DataInput { field = field, error = Just "5 items minimum" }, Cmd.none )
 
                     fstChunk :: restChunks ->
-                        ( PresortStep { items = from [] fstChunk restChunks, dnd = system.model }, Cmd.none )
+                        ( PresortStep { items = custom [] fstChunk restChunks, dnd = system.model }, Cmd.none )
 
         ( PresortStep ({ items, dnd } as presortModel), DnDMsg dndMsg ) ->
             let
                 ( newDnd, newUnsorted ) =
                     system.update dndMsg dnd (current items)
             in
-            ( PresortStep { presortModel | dnd = newDnd, items = items |> mapCurrent (\_ -> newUnsorted) }
+            ( PresortStep
+                { presortModel
+                    | dnd = newDnd
+                    , items =
+                        items
+                            |> relativeIndexedMap
+                                (\i x ->
+                                    if i == 0 then
+                                        newUnsorted
+
+                                    else
+                                        x
+                                )
+                }
             , system.commands dnd
             )
 
@@ -170,7 +185,7 @@ update msg model =
                     ( PresortStep { presortModel | items = nextItems }, Cmd.none )
 
                 Nothing ->
-                    ( MergeStep (pairForMerging (before items ++ [ current items ])), Cmd.none )
+                    ( MergeStep (pairForMerging (listPrev items ++ [ current items ])), Cmd.none )
 
         ( MergeStep mergeStepData, SelectLeft ) ->
             let
@@ -183,8 +198,8 @@ update msg model =
                         nextPair =
                             pairForMerging merged
                     in
-                    case nextPair.merged of
-                        singleList :: [] ->
+                    case ( nextPair.merged, nextPair.unmerged ) of
+                        ( singleList :: [], [] ) ->
                             ( Complete singleList, Cmd.none )
 
                         _ ->
@@ -204,8 +219,8 @@ update msg model =
                         nextPair =
                             pairForMerging merged
                     in
-                    case nextPair.merged of
-                        singleList :: [] ->
+                    case ( nextPair.merged, nextPair.unmerged ) of
+                        ( singleList :: [], [] ) ->
                             ( Complete singleList, Cmd.none )
 
                         _ ->
@@ -241,14 +256,17 @@ pairForMerging sortedLists =
         newLists =
             ListExtra.zip oddLists evenLists
                 |> List.map (\( l, r ) -> ( l, r, [] ))
+                |> Debug.log "newLists"
     in
     if List.length oddLists == List.length evenLists then
         { merged = [], unmerged = newLists }
+            |> Debug.log "at equal lengths"
 
     else
         case ListExtra.last oddLists of
             Just lastOdd ->
                 { merged = [ lastOdd ], unmerged = newLists }
+                    |> Debug.log "at lastOdd"
 
             Nothing ->
                 Debug.todo "Shouldn't happen!"
@@ -324,7 +342,7 @@ mergeView ( left, right, merged ) =
                 , div [ class "middle" ] [ button [ onClick SelectLeft ] [ text "same" ] ]
                 , div [ class "left-list" ] [ ul [] (List.map (\s -> li [] [ text s ]) leftList) ]
                 , div [ class "right-list" ] [ ul [] (List.map (\s -> li [] [ text s ]) rightList) ]
-                , div [ class "question" ] [ h1 [] [ text "Which is greater?" ] ]
+                , div [ class "question" ] [ h1 [] [ text "Which is the smaller number?" ] ]
                 ]
 
         _ ->
