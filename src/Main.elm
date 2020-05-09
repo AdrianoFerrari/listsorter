@@ -2,6 +2,8 @@ module Main exposing (..)
 
 import Browser
 import DnDList
+import File exposing (File)
+import File.Select as Select
 import Html exposing (..)
 import Html.Attributes as A exposing (class, value)
 import Html.Events exposing (onClick)
@@ -52,12 +54,12 @@ ghostView dnd items =
     in
     case maybeDragItem of
         Just item ->
-            Html.div
+            div
                 (system.ghostStyles dnd)
-                [ Html.text item ]
+                [ itemView item ]
 
         Nothing ->
-            Html.text ""
+            text ""
 
 
 
@@ -93,6 +95,8 @@ type alias Model =
 
 type Msg
     = ChangeData String
+    | ImagesRequested
+    | ImagesLoaded File (List File)
     | SubmitData
     | DnDMsg DnDList.Msg
     | SubmitPresort
@@ -106,6 +110,20 @@ update msg model =
     case ( model, msg ) of
         ( DataInput dataModel, ChangeData newField ) ->
             ( DataInput { dataModel | field = newField }, Cmd.none )
+
+        ( DataInput _, ImagesRequested ) ->
+            ( model, Select.files [ "image/*" ] ImagesLoaded )
+
+        ( DataInput dataModel, ImagesLoaded first rest ) ->
+            let
+                filepaths =
+                    first
+                        :: rest
+                        |> List.map File.name
+                        |> List.map (\s -> "./test/" ++ s)
+                        |> String.join "\n"
+            in
+            ( DataInput { dataModel | field = filepaths }, Cmd.none )
 
         ( DataInput { field }, SubmitData ) ->
             let
@@ -308,8 +326,13 @@ selectRight ({ merged, unmerged } as original) =
 -- VIEW
 
 
-itemView : DnDList.Model -> Int -> String -> Html Msg
-itemView dnd index item =
+itemView : String -> Html Msg
+itemView url =
+    img [ A.src url ] []
+
+
+dragListView : DnDList.Model -> Int -> String -> Html Msg
+dragListView dnd index item =
     let
         itemId =
             "id-" ++ item
@@ -324,12 +347,12 @@ itemView dnd index item =
             else
                 li
                     (A.id itemId :: system.dropEvents index itemId)
-                    [ text item ]
+                    [ itemView item ]
 
         Nothing ->
             li
                 (A.id itemId :: system.dragEvents index itemId)
-                [ text item ]
+                [ itemView item ]
 
 
 mergeView : ( List String, List String, List String ) -> Html Msg
@@ -337,12 +360,12 @@ mergeView ( left, right, merged ) =
     case ( left, right ) of
         ( leftItem :: leftList, rightItem :: rightList ) ->
             div [ class "grid-container" ]
-                [ div [ class "left-item" ] [ button [ onClick SelectLeft ] [ text leftItem ] ]
-                , div [ class "right-item" ] [ button [ onClick SelectRight ] [ text rightItem ] ]
+                [ div [ class "left-item" ] [ button [ onClick SelectLeft ] [ itemView leftItem ] ]
+                , div [ class "right-item" ] [ button [ onClick SelectRight ] [ itemView rightItem ] ]
                 , div [ class "middle" ] [ button [ onClick SelectLeft ] [ text "same" ] ]
-                , div [ class "left-list" ] [ ul [] (List.map (\s -> li [] [ text s ]) leftList) ]
-                , div [ class "right-list" ] [ ul [] (List.map (\s -> li [] [ text s ]) rightList) ]
-                , div [ class "question" ] [ h1 [] [ text "Which is the smaller number?" ] ]
+                , div [ class "left-list" ] [ ul [] (List.map itemView leftList) ]
+                , div [ class "right-list" ] [ ul [] (List.map itemView rightList) ]
+                , div [ class "question" ] [ h1 [] [ text "Which is better?" ] ]
                 ]
 
         _ ->
@@ -357,7 +380,8 @@ view ( current, _ ) =
                 [ dataModel.error |> Maybe.withDefault "" |> text
                 , textarea [ value dataModel.field, Html.Events.onInput ChangeData ] []
                 , button [ onClick SubmitData ] [ text "Submit" ]
-                , button [ onClick Undo ] [ text "Undo" ]
+                , span [] [ text "OR Load files" ]
+                , button [ onClick ImagesRequested ] [ text "Select Images" ]
                 ]
 
         PresortStep { items, dnd } ->
@@ -366,7 +390,7 @@ view ( current, _ ) =
                     LZ.current items
             in
             div []
-                [ ul [] (currentItems |> List.indexedMap (itemView dnd))
+                [ ul [] (currentItems |> List.indexedMap (dragListView dnd))
                 , ghostView dnd currentItems
                 , button [ onClick SubmitPresort ] [ text "Submit" ]
                 , button [ onClick Undo ] [ text "Undo" ]
@@ -383,7 +407,7 @@ view ( current, _ ) =
         Complete finishedList ->
             div []
                 [ h1 [] [ text "Done" ]
-                , ul [] (List.map (\i -> li [] [ text i ]) finishedList)
+                , ul [] (List.map itemView finishedList)
                 , button [ onClick Undo ] [ text "Undo" ]
                 ]
 
